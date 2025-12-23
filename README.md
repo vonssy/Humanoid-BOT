@@ -40,7 +40,6 @@ Humanoid BOT is an automated tool designed to streamline onchain operations acro
 - **Python:** Version 3.9 or higher
 - **pip:** Latest version recommended
 - **Compatible libraries:** eth-account and eth-utils(see requirements.txt)
-- **2captcha Key:** For automated google recaptcha solving
 
 ## 🛠 Installation
 
@@ -79,14 +78,6 @@ pip install library_name==version
 ```
 
 ## ⚙️ Configuration
-
-### 2captcha Key Setup (Optional)
-
-Create or edit `2captcha_key.txt` in the project directory:
-
-```
-your_2captcha_key
-```
 
 ### Account Setup
 
