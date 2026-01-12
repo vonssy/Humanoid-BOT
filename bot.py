@@ -1,17 +1,11 @@
-from aiohttp import (
-    ClientResponseError,
-    ClientSession,
-    ClientTimeout,
-    BasicAuth
-)
-from aiohttp_socks import ProxyConnector
+from curl_cffi import requests
 from fake_useragent import FakeUserAgent
 from eth_account import Account
 from eth_account.messages import encode_defunct
 from eth_utils import to_hex
 from datetime import datetime
 from colorama import *
-import asyncio, random, string, json, re, os, pytz
+import asyncio, random, string, json, os, pytz
 
 wib = pytz.timezone('Asia/Jakarta')
 
@@ -19,7 +13,7 @@ class Humanoid:
     def __init__(self) -> None:
         self.BASE_API = "https://prelaunch.humanoidnetwork.org"
         self.HF_API = "https://huggingface.co"
-        self.REF_CODE = "4FGZC3" # U can change it with yours.
+        self.REF_CODE = "ONDI60" # U can change it with yours.
         self.HEADERS = {}
         self.proxies = []
         self.proxy_index = 0
@@ -51,7 +45,17 @@ class Humanoid:
         minutes, seconds = divmod(remainder, 60)
         return f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
     
-    async def load_proxies(self):
+    def load_accounts(self):
+        filename = "accounts.txt"
+        try:
+            with open(filename, 'r') as file:
+                accounts = [line.strip() for line in file if line.strip()]
+            return accounts
+        except Exception as e:
+            self.log(f"{Fore.RED + Style.BRIGHT}Failed To Load Accounts: {e}{Style.RESET_ALL}")
+            return None
+
+    def load_proxies(self):
         filename = "proxy.txt"
         try:
             if not os.path.exists(filename):
@@ -96,26 +100,6 @@ class Humanoid:
         self.proxy_index = (self.proxy_index + 1) % len(self.proxies)
         return proxy
     
-    def build_proxy_config(self, proxy=None):
-        if not proxy:
-            return None, None, None
-
-        if proxy.startswith("socks"):
-            connector = ProxyConnector.from_url(proxy)
-            return connector, None, None
-
-        elif proxy.startswith("http"):
-            match = re.match(r"http://(.*?):(.*?)@(.*)", proxy)
-            if match:
-                username, password, host_port = match.groups()
-                clean_url = f"http://{host_port}"
-                auth = BasicAuth(username, password)
-                return None, clean_url, auth
-            else:
-                return None, proxy, None
-
-        raise Exception("Unsupported Proxy Type.")
-        
     def generate_address(self, account: str):
         try:
             account = Account.from_key(account)
@@ -191,14 +175,17 @@ class Humanoid:
 
         return proxy_choice, rotate_proxy
     
+    def ensure_ok(self, response):
+        if not response.ok:
+            raise Exception(f"HTTP {response.status_code}:{response.text}")
+    
     async def check_connection(self, proxy_url=None):
-        connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+        proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
         try:
-            async with ClientSession(connector=connector, timeout=ClientTimeout(total=30)) as session:
-                async with session.get(url="https://api.ipify.org?format=json", proxy=proxy, proxy_auth=proxy_auth) as response:
-                    response.raise_for_status()
-                    return True
-        except (Exception, ClientResponseError) as e:
+            response = await asyncio.to_thread(requests.get, url="https://api.ipify.org?format=json", proxies=proxies, timeout=30, impersonate="chrome120")
+            self.ensure_ok(response)
+            return True
+        except Exception as e:
             self.log(
                 f"{Fore.CYAN+Style.BRIGHT}Status  :{Style.RESET_ALL}"
                 f"{Fore.RED+Style.BRIGHT} Connection Not 200 OK {Style.RESET_ALL}"
@@ -216,15 +203,14 @@ class Humanoid:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.post(url=url, headers=headers, data=data, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxies=proxies, timeout=120, impersonate="chrome120")
+                self.ensure_ok(response)
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -245,15 +231,14 @@ class Humanoid:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.post(url=url, headers=headers, data=data, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxies=proxies, timeout=120, impersonate="chrome120")
+                self.ensure_ok(response)
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -272,15 +257,14 @@ class Humanoid:
             **self.HEADERS[address],
             "Authorization": f"Bearer {self.access_tokens[address]}"
         }
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.get(url=url, headers=headers, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.get, url=url, headers=headers, proxies=proxies, timeout=120, impersonate="chrome120")
+                self.ensure_ok(response)
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -302,16 +286,15 @@ class Humanoid:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.post(url=url, headers=headers, data=data, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        if response.status == 400: return None
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxies=proxies, timeout=120, impersonate="chrome120")
+                if response.status_code == 400: return None
+                self.ensure_ok(response)
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -330,15 +313,14 @@ class Humanoid:
             **self.HEADERS[address],
             "Authorization": f"Bearer {self.access_tokens[address]}"
         }
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.get(url=url, headers=headers, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.get, url=url, headers=headers, proxies=proxies, timeout=120, impersonate="chrome120")
+                self.ensure_ok(response)
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -354,14 +336,14 @@ class Humanoid:
     async def scrape_huggingface(self, endpoint: str, limit: int, proxy_url=None, retries=5):
         url = f"{self.HF_API}/api/{endpoint}"
         params = {"limit": limit, "sort": "lastModified", "direction": -1}
+        await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.get(url=url, params=params, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.get, url=url, params=params, proxies=proxies, timeout=120, impersonate="chrome120")
+                self.ensure_ok(response)
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -383,15 +365,14 @@ class Humanoid:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.post(url=url, headers=headers, data=data, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxies=proxies, timeout=120, impersonate="chrome120")
+                self.ensure_ok(response)
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -410,15 +391,14 @@ class Humanoid:
             **self.HEADERS[address],
             "Authorization": f"Bearer {self.access_tokens[address]}"
         }
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.get(url=url, headers=headers, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.get, url=url, headers=headers, proxies=proxies, timeout=120, impersonate="chrome120")
+                self.ensure_ok(response)
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -440,23 +420,21 @@ class Humanoid:
             "Content-Length": str(len(data)),
             "Content-Type": "application/json"
         }
-        await asyncio.sleep(1)
+        await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
-            connector, proxy, proxy_auth = self.build_proxy_config(proxy_url)
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
             try:
-                async with ClientSession(connector=connector, timeout=ClientTimeout(total=60)) as session:
-                    async with session.post(url=url, headers=headers, data=data, proxy=proxy, proxy_auth=proxy_auth) as response:
-                        if response.status == 400:
-                            self.log(
-                                f"{Fore.GREEN+Style.BRIGHT} ● {Style.RESET_ALL}"
-                                f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
-                                f"{Fore.YELLOW+Style.BRIGHT} Already Completed {Style.RESET_ALL}"
-                            )
-                            return False
-                        
-                        response.raise_for_status()
-                        return await response.json()
-            except (Exception, ClientResponseError) as e:
+                response = await asyncio.to_thread(requests.post, url=url, headers=headers, data=data, proxies=proxies, timeout=120, impersonate="chrome120")
+                if response.status_code == 400:
+                    self.log(
+                        f"{Fore.GREEN+Style.BRIGHT} ● {Style.RESET_ALL}"
+                        f"{Fore.WHITE+Style.BRIGHT}{title}{Style.RESET_ALL}"
+                        f"{Fore.YELLOW+Style.BRIGHT} Already Completed {Style.RESET_ALL}"
+                    )
+                    return False
+                self.ensure_ok(response)
+                return response.json()
+            except Exception as e:
                 if attempt < retries - 1:
                     await asyncio.sleep(5)
                     continue
@@ -479,15 +457,14 @@ class Humanoid:
             )
 
             is_valid = await self.check_connection(proxy)
-            if not is_valid:
-                if rotate_proxy:
-                    proxy = self.rotate_proxy_for_account(address)
-                    await asyncio.sleep(1)
-                    continue
+            if is_valid: return True
 
-                return False
+            if rotate_proxy:
+                proxy = self.rotate_proxy_for_account(address)
+                await asyncio.sleep(1)
+                continue
 
-            return True
+            return False
     
     async def process_auth_login(self, account: str, address: str, use_proxy: bool, rotate_proxy: bool):
         is_valid = await self.process_check_connection(address, use_proxy, rotate_proxy)
@@ -663,8 +640,8 @@ class Humanoid:
             
     async def main(self):
         try:
-            with open('accounts.txt', 'r') as file:
-                accounts = [line.strip() for line in file if line.strip()]
+            accounts = self.load_accounts()
+            if not accounts: return
 
             proxy_choice, rotate_proxy = self.print_question()
 
@@ -677,8 +654,7 @@ class Humanoid:
                 )
 
                 use_proxy = True if proxy_choice == 1 else False
-                if use_proxy:
-                    await self.load_proxies()
+                if use_proxy: self.load_proxies()
 
                 separator = "=" * 25
                 for idx, account in enumerate(accounts, start=1):
@@ -701,8 +677,11 @@ class Humanoid:
 
                         self.HEADERS[address] = {
                             "Accept": "*/*",
+                            "Accept-Encoding": "gzip, deflate, br",
                             "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+                            "Cache-Control": "no-cache",
                             "Origin": "https://prelaunch.humanoidnetwork.org",
+                            "Pragma": "no-cache",
                             "Referer": "https://prelaunch.humanoidnetwork.org/",
                             "Sec-Fetch-Dest": "empty",
                             "Sec-Fetch-Mode": "cors",
@@ -711,10 +690,11 @@ class Humanoid:
                         }
                         
                         await self.process_accounts(account, address, use_proxy, rotate_proxy)
+                        await asyncio.sleep(random.uniform(1.5, 3.0))
 
                 self.log(f"{Fore.CYAN + Style.BRIGHT}={Style.RESET_ALL}"*72)
                 
-                delay = 12 * 60 * 60
+                delay = 24 * 60 * 60
                 while delay > 0:
                     formatted_time = self.format_seconds(delay)
                     print(
@@ -729,9 +709,6 @@ class Humanoid:
                     await asyncio.sleep(1)
                     delay -= 1
 
-        except FileNotFoundError:
-            self.log(f"{Fore.RED}File 'accounts.txt' Not Found.{Style.RESET_ALL}")
-            return
         except Exception as e:
             self.log(f"{Fore.RED+Style.BRIGHT}Error: {e}{Style.RESET_ALL}")
             raise e
