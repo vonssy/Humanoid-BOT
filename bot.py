@@ -524,12 +524,15 @@ class Humanoid:
                     f"{Fore.WHITE+Style.BRIGHT}Models{Style.RESET_ALL}"
                 )
                 if models_remaining > 0:
-                    models = await self.scrape_huggingface("models", models_remaining, proxy)
+                    models = await self.scrape_huggingface("models", 15, proxy)
                     if models:
 
                         for model in models:
                             model_name = model["id"]
                             model_url = f"{self.HF_API}/{model['id']}"
+                            is_private = model["private"]
+
+                            if is_private: continue
 
                             training_data = {
                                 "fileName": model_name,
@@ -560,7 +563,10 @@ class Humanoid:
                                     f"{Fore.GREEN+Style.BRIGHT} Model Submited Successfully {Style.RESET_ALL}"
                                 )
 
-                            models_completed+=1
+                                models_completed+=1
+
+                            if models_completed == models_limit:
+                                break
 
                 else:
                     self.log(
@@ -576,12 +582,15 @@ class Humanoid:
                     f"{Fore.WHITE+Style.BRIGHT}Datasets{Style.RESET_ALL}"
                 )
                 if datasets_remaining > 0:
-                    datasets = await self.scrape_huggingface("datasets", datasets_remaining, proxy)
+                    datasets = await self.scrape_huggingface("datasets", 15, proxy)
                     if datasets:
 
                         for dataset in datasets:
                             dataset_name = dataset["id"]
                             dataset_url = f"{self.HF_API}/datasets/{dataset['id']}"
+                            is_private = dataset["private"]
+
+                            if is_private: continue
 
                             training_data = {
                                 "fileName": dataset_name,
@@ -612,7 +621,10 @@ class Humanoid:
                                     f"{Fore.GREEN+Style.BRIGHT} Dataset Submited Successfully {Style.RESET_ALL}"
                                 )
 
-                            datasets_completed+=1
+                                datasets_completed+=1
+
+                            if datasets_completed == datasets_limit:
+                                break
 
                 else:
                     self.log(
