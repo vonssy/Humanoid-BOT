@@ -386,8 +386,8 @@ class Humanoid:
         return None
     
     async def scrape_huggingface(self, address: str, endpoint: str, proxy_url=None, retries=5):
-        url = f"{self.HF_API}/api/{endpoint}"
-        params = {"limit": 15, "sort": "lastModified", "direction": -1}
+        url = f"{self.HF_API}/{endpoint}"
+        params = {"sort": "created", "withCount": True}
 
         await asyncio.sleep(random.uniform(0.5, 1.0))
         for attempt in range(retries):
@@ -576,10 +576,10 @@ class Humanoid:
                     f"{Fore.WHITE+Style.BRIGHT}Models{Style.RESET_ALL}"
                 )
                 if models_remaining > 0:
-                    models = await self.scrape_huggingface(address, "models", proxy)
+                    models = await self.scrape_huggingface(address, "models-json", proxy)
                     if models:
 
-                        for model in models:
+                        for model in models["models"]:
                             model_name = model["id"]
                             model_url = f"{self.HF_API}/{model['id']}"
                             is_private = model["private"]
@@ -634,10 +634,10 @@ class Humanoid:
                     f"{Fore.WHITE+Style.BRIGHT}Datasets{Style.RESET_ALL}"
                 )
                 if datasets_remaining > 0:
-                    datasets = await self.scrape_huggingface(address, "datasets", proxy)
+                    datasets = await self.scrape_huggingface(address, "datasets-json", proxy)
                     if datasets:
 
-                        for dataset in datasets:
+                        for dataset in datasets["datasets"]:
                             dataset_name = dataset["id"]
                             dataset_url = f"{self.HF_API}/datasets/{dataset['id']}"
                             is_private = dataset["private"]
